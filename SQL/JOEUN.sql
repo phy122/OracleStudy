@@ -1,3 +1,4 @@
+-- Active: 1725516658708@@127.0.0.1@1521@orcl@JOEUN
 -- 72.
 -- MS_BOARD 의 WRITER 속성을 NUMBER 타입으로 변경하고
 -- MS_USER 의 USER_NO 를 참조하는 외래키로 지정하시오.
@@ -853,3 +854,256 @@ CREATE INDEX IDX_MS_USER_NAME ON MS_USER(USER_NAME);
 -- 인덱스 삭제
 DROP INDEX IDX_MS_USER_NAME;
 
+-- 그룹 관련 함수
+
+-- ROLLUP
+SELECT dept_code, job_code
+      ,COUNT(*), MAX(salary), SUM(salary), TRUNC( AVG(salary), 2)
+FROM employee
+GROUP BY dept_code, job_code
+ORDER BY dept_code, job_code
+;
+
+-- CUBE
+SELECT dept_code, job_code
+      ,COUNT(*), MAX(salary), SUM(salary), TRUNC( AVG(salary), 2)
+FROM employee
+WHERE dept_code IS NOT NULL
+  AND job_code IS NOT NULL
+GROUP BY ROLLUP(dept_code, job_code)
+ORDER BY dept_code, job_code
+;
+
+-- GROUPING SETS
+SELECT dept_code, job_code, COUNT(*)
+FROM employee
+GROUP BY GROUPING SETS( (dept_code), (job_code) )
+ORDER BY dept_code, job_code
+;
+
+SELECT dept_code
+      , job_code
+      , COUNT(*)
+      , MAX(salary)
+      , SUM(salary)
+      , TRUNC( AVG(salary), 2)
+      , GROUPING(dept_code) "부서코드 그룹여부"
+      , GROUPING(job_code) "직급코드 그룹여부"
+FROM employee
+WHERE dept_code IS NOT NULL
+  AND job_code IS NOT NULL
+GROUP BY CUBE(dept_code, job_code)
+ORDER BY dept_code, job_code
+;
+
+-- PIVOT
+SELECT *
+FROM (
+        SELECT dept_code, job_code, salary
+        FROM employee
+     )
+     PIVOT (
+        MAX(salary)
+        -- 열에 올릴 컬럼들
+        FOR dept_code IN ('D1','D2','D3','D4','D5','D6','D7','D8','D9')
+        /*
+            SELECT LISTAGG(dept_id, ',')
+            FROM department
+        */
+     )
+ORDER BY job_code;
+
+-- PIVOT 전 데이터
+SELECT dept_code, job_code, salary
+FROM employee
+
+-- UNPIVOT
+SELECT *
+FROM (
+        SELECT dept_code
+              ,MAX( DECODE(job_code, 'J1', salary ) ) J1 
+              ,MAX( DECODE(job_code, 'J2', salary ) ) J2 
+              ,MAX( DECODE(job_code, 'J3', salary ) ) J3 
+              ,MAX( DECODE(job_code, 'J4', salary ) ) J4 
+              ,MAX( DECODE(job_code, 'J5', salary ) ) J5 
+              ,MAX( DECODE(job_code, 'J6', salary ) ) J6 
+              ,MAX( DECODE(job_code, 'J7', salary ) ) J7 
+        FROM employee
+        GROUP BY dept_code
+        ORDER BY dept_code
+     )
+     UNPIVOT (
+        salary
+        FOR job_code IN (J1, J2, J3, J4, J5, J6, J7)
+     )
+;
+
+-- UNPIVOT 전 데이터
+SELECT dept_code
+              ,MAX( DECODE(job_code, 'J1', salary ) ) J1 
+              ,MAX( DECODE(job_code, 'J2', salary ) ) J2 
+              ,MAX( DECODE(job_code, 'J3', salary ) ) J3 
+              ,MAX( DECODE(job_code, 'J4', salary ) ) J4 
+              ,MAX( DECODE(job_code, 'J5', salary ) ) J5 
+              ,MAX( DECODE(job_code, 'J6', salary ) ) J6 
+              ,MAX( DECODE(job_code, 'J7', salary ) ) J7 
+        FROM employee
+        GROUP BY dept_code
+        ORDER BY dept_code;
+
+-- 윈도우 함수
+-- RANK
+SELECT employee_id, salary
+     , RANK() 
+				OVER (ORDER BY salary DESC) AS salary_rank
+FROM employees;
+
+-- DENSE_RANK
+SELECT employee_id
+       ,salary
+       ,DENSE_RANK() 
+        OVER (ORDER BY salary DESC) AS dense_salary_rank
+FROM employees;
+
+-- ROW_NUMBER
+SELECT employee_id
+			,salary
+			,ROW_NUMBER() 
+				OVER (ORDER BY salary DESC) AS row_num
+FROM employees;
+
+-- FIRST_VALUE
+SELECT department_id
+    , employee_id
+    , salary
+    ,FIRST_VALUE(salary) 
+        OVER (PARTITION BY department_id 
+              ORDER BY hire_date) AS first_salary
+FROM employees;
+
+-- LAST_VALUE
+SELECT department_id
+    , employee_id
+    , salary
+    , LAST_VALUE(salary) 
+        OVER (PARTITION BY department_id 
+              ORDER BY hire_date
+              -- ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+              ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+              ) AS last_salary
+FROM employees;
+
+-- ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED PRECEDING
+-- 현재 행을 기준으로 첫번째 행부터 마지막 행까지 모두 포함하여 계산
+
+--LAG
+SELECT employee_id, first_name, hire_date,
+       LAG(first_name) OVER (ORDER BY hire_date) AS previous_name,
+       LAG(hire_date) OVER (ORDER BY hire_date) AS previous_hire_date
+FROM employees;
+
+-- LEAD
+SELECT employee_id, first_name, hire_date,
+       LEAD(first_name) OVER (ORDER BY hire_date) AS next_first_name,
+       LEAD(hire_date) OVER (ORDER BY hire_date) AS next_hire_date
+FROM employees;
+
+-- 비율함수
+-- CUME_DIST : 누적분포
+SELECT employee_id
+    , salary
+    , CUME_DIST() 
+        OVER (ORDER BY salary DESC) AS cumulative_distribution
+FROM employees;
+
+-- PECENT_RANK
+SELECT employee_id
+    , salary
+    , PERCENT_RANK() 
+        OVER (ORDER BY salary DESC) AS percent_rank
+FROM employees;
+
+-- NTILE
+SELECT employee_id
+    , salary
+    , NTILE(4) 
+        OVER (ORDER BY salary DESC) AS quartile
+FROM employees;
+
+-- RATIO_TO_REPORT
+SELECT department_id
+    , employee_id
+    , salary
+    , RATIO_TO_REPORT(salary) 
+        OVER (PARTITION BY department_id) AS salary_ratio
+FROM employees;
+
+-- TOP N 쿼리
+
+-- ORACLE 페이징 처리
+SELECT *
+FROM (
+    SELECT ROWNUM AS row_num, NO, title, content
+    FROM board
+    WHERE ROWNUM <= 30  -- 원하는 페이지 크기를 여기에 지정합니다.
+)
+WHERE row_num >= 1; -- 원하는 페이지 번호에 맞게 시작하는 행 번호를 여기에 지정합니다.
+
+-- MySQL 페이징 처리
+SELECT *
+FROM board0909
+LIMIT 0, 10;       -- limit 시작 index, 개수
+
+
+
+-- 계층형 쿼리 - CONNECT BY
+SELECT LEVEL
+    , employee_id
+    ,LPAD(' ', LEVEL * 2, ' ') || FIRST_NAME AS 직원명
+    , first_name
+    , last_name
+    , job_id
+    , manager_id
+FROM employees
+START WITH manager_id IS NULL
+CONNECT BY PRIOR employee_id = manager_id;
+
+-- PL/SQL 기본 구조
+
+-- 블록
+DECLARE
+        필요한 요소를 선언;     -- 선언부
+BEGIN
+        실행문;                 -- 실행부
+EXCEPTION
+        예외 처리 부분          -- 예외 처리
+END;
+
+
+-- 변수 선언과 출력
+-- 실행결과 출력하도록 설정(SQL PLUS, SQL Developer 에서 실행가능)
+SET SERVEROUTPUT ON;     
+DECLARE
+    VI_NUM      NUMBER;     -- 선언부 (NUMBER 타입 변수 VI_NUM 선언)
+BEGIN
+    VI_NUM := 100;          -- 실행부
+    DBMS_OUTPUT.PUT_LINE(VI_NUM);
+END;    
+
+-- 변수 선언
+DECLARE
+    -- 변수 선언 : 변수명 데이터타입 := 값;
+    VS_EMP_NAME VARCHAR2(100);
+    VS_DEPT_NAME VARCHAR2(100);
+BEGIN
+    SELECT E.EMP_NAME, D.DEPT_TITLE
+    INTO VS_EMP_NAME, VS_DEPT_NAME      -- 조회결과를 변수에 대입(INTO)
+        FROM EMPLOYEE E
+        ,DEPARTMENT D
+    WHERE E.DEPT_CODE = D.DEPT_ID
+    AND E.EMP_ID = 200;
+
+    DBMS_OUTPUT.PUT_LINE(VS_EMP_NAME || ' : ' || VS_DEPT_NAME);
+
+END;
+/
