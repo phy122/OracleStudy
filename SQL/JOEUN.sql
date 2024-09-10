@@ -1572,3 +1572,57 @@ EXECUTE PRO_PRINT_EMP('200')
 
 -- 존재하는 않는 사원 번호 (예외 발생)
 EXECUTE PRO_PRINT_EMP('500')
+
+-- 115.
+
+CREATE OR REPLACE PROCEDURE PROMOTE_EMPLOYEE(
+    p_emp_id IN NUMBER
+)
+AS
+        -- 근속연수
+        V_YEAR_OF_WORK NUMBER;
+        -- 직급번호
+        V_JOB_CODE VARCHAR2(2);
+BEGIN
+        -- 근속 연수 조회
+        SELECT TRUNC(MONTHS_BETWEEN(sysdate, HIRE_DATE) / 12)
+         INTO V_YEAR_OF_WORK
+         FROM EMPLOYEE
+        WHERE EMP_ID = p_emp_id;
+
+        -- 근속 연수에 따라 직급 코드 결정
+        IF V_YEAR_OF_WORK > 15 THEN V_JOB_CODE := 'J2';
+        ELSEIF V_YEAR_OF_WORK > 13 THEN V_JOB_CODE := 'J3';
+        ELSEIF V_YEAR_OF_WORK > 10 THEN V_JOB_CODE := 'J4';
+        ELSEIF V_YEAR_OF_WORK > 6 THEN V_JOB_CODE := 'J5';
+        ELSEIF V_YEAR_OF_WORK > 3 THEN V_JOB_CODE := 'J6';
+        ELSE
+                DBMS_OUTPUT.PUT_LINE('승진 대상 사원이 아닙니다.');
+                RETURN;     -- 승진 대상의 경우 나머지 로직 진행 X
+        END IF;
+
+        -- 직급 수정 (승진)
+        UPDATE EMPLOYEE
+            SET JOB_CODE = V_JOB_CODE
+        WHERE EMP_ID = p_emp_id;
+
+        -- 결과 메세지 출력
+        DBMS_OUTPUT.PUT_LINE(p_emp_id || ' 사원을 ' || V_JOB_CODE || '직급으로 승진시켰습니다.');
+
+        EXCEPTION
+                WHEN NO_DATA_FOUND THEN
+                        DBMS_OUTPUT.PUT_LINE('존재하지 않는 사원번호입니다.');
+                WHEN OTHERS THEN
+                        DBMS_OUTPUT.PUT_LINE('예외 발생 : ' || SQLERRM);
+                -- SQLERRM : 에러 메세지를 반환
+
+END;
+/
+
+-- 실행
+BEGIN
+        PROMOTE_EMPLOYEE(215);
+END;
+/
+
+SELECT * FROM EMPLOYEE WHERE EMP_ID = 215;
